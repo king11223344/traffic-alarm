@@ -2,21 +2,14 @@ import requests
 import os
 import sys
 
-# --- SECRETS (Fetched from Environment Variables) ---
+# --- SECRETS ---
 API_KEY = os.environ["MAPS_API_KEY"]
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 # --- CONFIG ---
-ORIGIN = "Phase I, Ashraya Layout, Garudachar Palya, Mahadevapura, Bengaluru, Karnataka 560048"      # Update this
-DESTINATION = "2nd Main, 1st Cross Rd, JCR Layout, Panathur, Bengaluru, Karnataka 560087"  # Update this
-TARGET_THRESHOLD_MINS = 10                 # Update this
-
-def send_telegram_alert(minutes):
-    message = f"🚨 TRAFFIC ALERT 🚨\n\nTravel time is down to {int(minutes)} mins!\nGo now!"
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-    requests.post(url, data=data)
+ORIGIN = "Times Square, New York, NY"      # MAKE SURE THESE ARE CORRECT
+DESTINATION = "JFK Airport, New York, NY" 
 
 def get_travel_time():
     url = "https://maps.googleapis.com/maps/api/distancematrix/json"
@@ -27,24 +20,42 @@ def get_travel_time():
         "departure_time": "now",
         "traffic_model": "best_guess"
     }
+    
+    print(f"Connecting to Google Maps for route: {ORIGIN} to {DESTINATION}...")
+    
     response = requests.get(url, params=params)
     data = response.json()
+
+    # --- DEBUGGING PRINT ---
+    # This will show us exactly what Google thinks went wrong
+    print("GOOGLE RESPONSE:", data)
+    # -----------------------
+
+    # Check for top-level error status
+    if data.get('status') != 'OK':
+        print(f"API Error detected: {data.get('status')}")
+        return None
+
     try:
-        duration_seconds = data['rows'][0]['elements'][0]['duration_in_traffic']['value']
+        # Check specific element status (e.g., if route not found)
+        element = data['rows'][0]['elements'][0]
+        if element['status'] != 'OK':
+             print(f"Route Error: {element['status']}")
+             return None
+             
+        duration_seconds = element['duration_in_traffic']['value']
         return duration_seconds / 60
-    except:
+    except Exception as e:
+        print(f"Parsing Error: {e}")
         return None
 
 def main():
-    # GitHub Actions handles the scheduling, so we just run ONCE and exit.
     minutes = get_travel_time()
     
     if minutes:
-        print(f"Current travel time: {minutes} mins")
-        if minutes <= TARGET_THRESHOLD_MINS:
-            send_telegram_alert(minutes)
+        print(f"SUCCESS! Travel time: {minutes} mins")
     else:
-        print("Error fetching data")
+        print("FAILED to get travel time. Check the 'GOOGLE RESPONSE' above.")
         sys.exit(1)
 
 if __name__ == "__main__":
