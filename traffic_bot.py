@@ -8,10 +8,10 @@ TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 # --- CONFIG ---
-ORIGIN = "Times Square, New York, NY"      # MAKE SURE THESE ARE CORRECT
+ORIGIN = "Times Square, New York, NY"      
 DESTINATION = "JFK Airport, New York, NY" 
 
-def get_travel_time():
+def main():
     url = "https://maps.googleapis.com/maps/api/distancematrix/json"
     params = {
         "origins": ORIGIN,
@@ -21,41 +21,33 @@ def get_travel_time():
         "traffic_model": "best_guess"
     }
     
-    print(f"Connecting to Google Maps for route: {ORIGIN} to {DESTINATION}...")
+    print(f"--- DEBUG LOG START ---")
+    print(f"Checking route: {ORIGIN} -> {DESTINATION}")
     
-    response = requests.get(url, params=params)
-    data = response.json()
-
-    # --- DEBUGGING PRINT ---
-    # This will show us exactly what Google thinks went wrong
-    print("GOOGLE RESPONSE:", data)
-    # -----------------------
-
-    # Check for top-level error status
-    if data.get('status') != 'OK':
-        print(f"API Error detected: {data.get('status')}")
-        return None
-
     try:
-        # Check specific element status (e.g., if route not found)
-        element = data['rows'][0]['elements'][0]
-        if element['status'] != 'OK':
-             print(f"Route Error: {element['status']}")
-             return None
-             
-        duration_seconds = element['duration_in_traffic']['value']
-        return duration_seconds / 60
-    except Exception as e:
-        print(f"Parsing Error: {e}")
-        return None
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # PRINT THE EXACT ERROR FROM GOOGLE
+        print("GOOGLE SAYS:", data)
+        
+        if data.get('status') == 'OK':
+             print("Status is OK. Checking elements...")
+             element = data['rows'][0]['elements'][0]
+             if element.get('status') == 'OK':
+                 duration = element['duration_in_traffic']['value'] / 60
+                 print(f"SUCCESS! Time: {duration} mins")
+             else:
+                 print(f"ROUTE ERROR: {element.get('status')}")
+                 sys.exit(1)
+        else:
+             print(f"API ERROR: {data.get('status')}")
+             if 'error_message' in data:
+                 print(f"DETAILS: {data['error_message']}")
+             sys.exit(1)
 
-def main():
-    minutes = get_travel_time()
-    
-    if minutes:
-        print(f"SUCCESS! Travel time: {minutes} mins")
-    else:
-        print("FAILED to get travel time. Check the 'GOOGLE RESPONSE' above.")
+    except Exception as e:
+        print(f"PYTHON CRASH: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
